@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Шахматный ИИ (Текстовая доска)</title>
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: 'Courier New', monospace; text-align: center; background: #f0f0f0; }
+        .chessboard { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); width: 400px; margin: 20px auto; border: 4px solid #333; }
+        .cell { width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; user-select: none; }
+        .white { background-color: #f0d9b5; }
+        .black { background-color: #b58863; }
+        .selected { background-color: #7ab874 !important; }
+    </style>
+</head>
+<body>
+
+    <h2>Шахматы с ИИ (Простая доска)</h2>
+    <p>Нажмите на фигуру, затем на клетку, куда хотите походить.</p>
+    <div id="board" class="chessboard"></div>
+
+<script>
+var game = new Chess();
+var selectedSquare = null;
+
+// Символы фигур для отображения
+var unicodePieces = {
+    'wp': '♙', 'wn': '♘', 'wb': '♗', 'wr': '♖', 'wq': '♕', 'wk': '♔',
+    'bp': '♟', 'bn': '♞', 'bb': '♝', 'br': '♜', 'bq': '♛', 'bk': '♚'
+};
+
+var pieceValues = { p: 10, n: 30, b: 30, r: 50, q: 90, k: 900 };
+
+function evaluateBoard(boardState) {
+    let totalEvaluation = 0;
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            let piece = boardState[i][j];
+            if (piece) {
+                let value = pieceValues[piece.type];
+                totalEvaluation += (piece.color === 'w' ? value : -value);
+            }
+        }
+    }
+    return totalEvaluation;
+}
+
+function minimax(gameInstance, depth, alpha, beta, isMaximizingPlayer) {
+    if (depth === 0 || gameInstance.game_over()) {
+        return -evaluateBoard(gameInstance.board());
+    }
+    var moves = gameInstance.moves();
+    if (isMaximizingPlayer) {
+        let maxEval = -Infinity;
+        for (let move of moves) {
+            gameInstance.move(move);
+            let evaluation = minimax(gameInstance, depth - 1, alpha, beta, false);
+            gameInstance.undo();
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = Infinity;
+        for (let move of moves) {
+            gameInstance.move(move);
+            let evaluation = minimax(gameInstance, depth - 1, alpha, beta, true);
+            gameInstance.undo();
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
+}
+
+function calculateBestMove(gameInstance) {
+    var moves = gameInstance.moves({ verbose: true });
+    if (moves.length === 0) return null;
+    var bestMove = null;
+    var bestValue = -Infinity;
+
+    for (let move of moves) {
+        gameInstance.move(move);
+        var boardValue = minimax(gameInstance, 2, -Infinity, Infinity, false);
+        gameInstance.undo();
+        if (boardValue > bestValue) {
+            bestValue = boardValue;
+            bestMove = move;
+        }
+    }
+    return bestMove;
+}
+
+// Отрисовка доски в HTML
+function drawBoard() {
+    var boardDiv = document.getElementById('board');
+    boardDiv.innerHTML = '';
+    var boardState = game.board();
+
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            let cell = document.createElement('div');
+            let squareName = String.fromCharCode(97 + j) + (8 - i);
+            
+            cell.className = 'cell ' + ((i + j) % 2 === 0 ? 'white' : 'black');
+            if (selectedSquare === squareName) cell.className += ' selected';
+
+            let piece = boardState[i][j];
+            if (piece) {
+                cell.innerText = unicodePieces[piece.color + piece.type];
+            }
+
+            cell.onclick = () => handleCellClick(squareName);
+            boardDiv.appendChild(cell);
+        }
+    }
+}
+
+function handleCellClick(square) {
+    if (game.game_over()) return;
+
+    if (selectedSquare === null) {
+        let piece = game.get(square);
+        if (piece && piece.color === 'w') {
+            selectedSquare = square;
+            drawBoard();
+        }
+    } else {
+        var move = game.move({
+            from: selectedSquare,
+            to: square,
+            promotion: 'q'
+        });
+
+        selectedSquare = null;
+
+        if (move === null) {
+            // Если ход нелегальный, проверяем, выбрал ли игрок другую свою фигуру
+            let piece = game.get(square);
+            if (piece && piece.color === 'w') selectedSquare = square;
+        } else {
+            drawBoard();
+            if (game.game_over()) {
+                alert('Игра окончена!');
+            } else {
+                setTimeout(makeAIMove, 300);
+            }
+        }
+        drawBoard();
+    }
+}
+
+function makeAIMove() {
+    var bestMove = calculateBestMove(game);
+    if (bestMove) {
+        game.move(bestMove);
+        drawBoard();
+        if (game.game_over()) alert('Игра окончена!');
+    }
+}
+
+drawBoard();
+</script>
+</body>
+</html>
